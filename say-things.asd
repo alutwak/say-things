@@ -6,7 +6,7 @@
   :license  "Specify license here"
   :version "0.0.1"
   :serial t
-  :depends-on (#:uiop #:plokami)
+  :depends-on (#:uiop #:cl-ppcre #:plokami)
   :components ((:file "package")
                (:file "dictionary")
                (:file "say-things")))

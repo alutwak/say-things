@@ -2,6 +2,13 @@
 
 (in-package #:say-things)
 
+(defvar *nouns*)
+(defvar *verbs*)
+(defvar *adjectives*)
+(defvar *adverbs*)
+(defvar *prepositions*)
+(defvar *wordmap*)
+
 (defgeneric to-string (word)
   (:documentation "Gets the string from the word."))
 
@@ -11,6 +18,12 @@
 (defmethod to-string ((wrd string))
   wrd)
 
+(defgeneric derivatives (wrd)
+  (:documentation "Returns a list of all derivative words"))
+
+(defgeneric to-alist (wrd &optional sub-a-list)
+  (:documentation "Returns the word's properties as an alist"))
+
 (defclass word ()
   ((lemma
     :initarg :lemma
@@ -18,29 +31,30 @@
    (freq
     :initarg :freq
     :initform 1
-    :reader freq)))
+    :reader freq)
+   (cumul-weight
+    :initform 0
+    :accessor weight)))
 
-(defgeneric derivatives (wrd)
-  (:documentation "Returns a list of all derivative words"))
-
-(defgeneric copy (wrd)
-  (:documentation "Copies the word"))
+(defmethod to-alist ((wrd word) &optional sub-a-list)
+  (with-slots (lemma freq) wrd
+    (append (list `(pos . ,(type-of wrd)) `(freq . ,freq) `(lemma . ,lemma)) sub-a-list)))
 
 (defmethod derivatives ((wrd word))
   (list (lemma wrd)))
 
-(defmethod copy ((wrd word))
-  (make-instance 'word :lemma (lemma wrd) :freq (freq wrd)))
+(defmethod print-object ((wrd word) stream)
+  (format stream "~s" (to-alist wrd)))
 
 (defclass noun (word)
   ((plural
     :initform nil
     :initarg :plural
     :reader plural)
-   (number
+   (numeral
     :initform 'singular
-    :initarg :number
-    :accessor number
+    :initarg :numeral
+    :accessor numeral
     :documentation "The number of things the noun refers to ('singular or 'plural)")))
 
 (defmethod initialize-instance :after ((wrd noun) &key plural)
@@ -52,20 +66,17 @@
 
 (defmethod to-string ((wrd noun))
   (to-string
-   (if (eq (number wrd) 'plural)
+   (if (eq (numeral wrd) 'plural)
        (plural wrd)
        (lemma wrd))))
 
+(defmethod to-alist ((wrd noun) &optional sub-a-list)
+  (declare (ignore sub-a-list))
+  (with-slots (plural) wrd
+    (call-next-method wrd (list `(plural . ,plural)))))
+
 (defmethod derivatives ((wrd noun))
   (list (lemma wrd) (plural wrd)))
-
-(defmethod copy ((wrd noun))
-  (make-instance
-   'noun
-   :lemma (lemma wrd)
-   :freq (freq wrd)
-   :plural (plural wrd)
-   :number (number wrd)))
 
 (defclass verb (word)
   ((infin
@@ -92,10 +103,10 @@
     :initarg :past-part
     :initform nil
     :reader past-part)
-   (number
+   (numeral
     :initform 'singular
-    :initarg :number
-    :accessor number
+    :initarg :numeral
+    :accessor numeral
     :documentation "The number of subjects the verb refers to ('singular or 'plural)")
    (person
     :initform 'third
@@ -125,6 +136,12 @@
   (to-string
    (conjugate-verb wrd)))
 
+(defmethod to-alist ((wrd verb) &optional sub-a-list)
+  (declare (ignore sub-a-list))
+  (with-slots (infin past present future pres-part past-part) wrd
+    (call-next-method wrd (list `(infin . ,infin) `(past . ,past) `(present . ,present)
+                                `(future . ,future) `(pres-part . ,pres-part) `(past-part . ,past-part)))))
+
 (defmethod derivatives ((wrd verb))
   (let ((derivs (list (lemma wrd))))
     (when (infin wrd)
@@ -143,26 +160,11 @@
       (setq derivs (cons (past-part wrd) derivs)))
     derivs))
 
-(defmethod copy ((wrd verb))
-  (make-instance
-   'verb
-   :lemma (lemma wrd)
-   :freq (freq wrd)
-   :infin (infin wrd)
-   :past (past wrd)
-   :present (present wrd)
-   :future (future wrd)
-   :pres-part (pres-part wrd)
-   :past-aprt (past-part wrd)
-   :number (number wrd)
-   :person (person wrd)
-   :tense (tense wrd)))
-
 (defun conjugate-verb (wrd)
   (let ((conjugates (slot-value wrd (tense wrd))))
     (if (not (listp conjugates))
         conjugates
-        (if (eq (number wrd) 'plural)
+        (if (eq (numeral wrd) 'plural)
             (cdr (assoc 'plural conjugates))
             (case (person wrd)
               ((first)
@@ -210,6 +212,11 @@
      ((comp)
       (comparative wrd)))))
 
+(defmethod to-alist ((wrd descriptor) &optional sub-a-list)
+  (declare (ignore sub-a-list))
+  (with-slots (comparative superlative) wrd
+    (call-next-method wrd (list `(comparative . ,comparative) `(superaltive . ,superlative)))))
+
 (defmethod derivatives ((wrd descriptor))
   (let ((derivs))
     (mapc (lambda (deriv)
@@ -220,18 +227,9 @@
             ,(superlative wrd)))
     derivs))
 
-(defmethod copy ((wrd descriptor))
-  (make-instance
-   (type-of wrd)
-   :lemma (lemma wrd)
-   :freq (freq wrd)
-   :comparative (comparative wrd)
-   :superlative (superlative wrd)
-   :level (level wrd)))
+(defclass adjective (descriptor) ())
 
-(defclass adj (descriptor) ())
-
-(defclass adv (descriptor) ())
+(defclass adverb (descriptor) ())
 
 (defclass preposition (word) ())
 
@@ -272,13 +270,13 @@
 (defmacro assoc-ref (item a-list &key (test '#'eq))
   `(cdr (assoc ,item ,a-list :test ,test)))
 
-(defun make-pronoun (&key (person 'third) (number 'singular) (gender 'neut) (which 'subject))
+(defun make-pronoun (&key (person 'third) (numeral 'singular) (gender 'neut) (which 'subject))
   (assoc-ref
    which
    (assoc-ref
-    (or (when (eq number 'plural) 'plural)
+    (or (when (eq numeral 'plural) 'plural)
         (when (eq person 'third) gender)
-        number)
+        numeral)
     (assoc-ref
      person
      *pronoun-map*))))
@@ -366,12 +364,19 @@
   ((freq-total
     :initform 0
     :reader freq-total)
+   (weight
+    :initform 0
+    :accessor weight)
    (words
     :initform (make-array 0 :element-type 'word :adjustable t :fill-pointer t)
     :reader words)))
 
-(defmethod choose-random ((object dictionary))
-  (choose-random (words object)))
+(defmethod choose-random ((dict dictionary))
+  (choose-random (words dict)))
+
+(defmethod choose-random-weighted ((dict dictionary))
+  (let ((weight (random (weight dict))))
+    (find-word-by-weight weight dict)))
 
 (defun add-to-dict (dict wrd)
   (let* ((freq (freq wrd))
@@ -382,27 +387,117 @@
       (vector-push-extend wrd (words dict))
       (incf (slot-value dict 'freq-total) freq))))
 
+(defun update-dict-weights (dict)
+  (let ((weight 0))
+    (map
+     nil
+     (lambda (wrd)
+       (incf weight (freq wrd))
+       (setf (weight wrd) weight))
+     (words dict))
+    (setf (weight dict) weight)))
+
 (defun sorted-dict (dict)
   (sort (words dict) #'string< :key #'lemma)
   dict)
 
-(defun find-sorted (item seq test-less test-equal key &optional (begin 0) (end (length seq)))
-  (unless (= (+ 1 begin) end)
-    (let* ((middle (+ (floor (/ (- end begin) 2)) begin))
-           (target (elt seq middle))
-           (test (funcall key target)))
-      (cond ((funcall test-equal item test)
-             target)
-            ((funcall test-less item test)
-             (find-sorted item seq test-less test-equal key begin middle))
-            (t
-             (find-sorted item seq test-less test-equal key middle end))))))
+(defun find-sorted (item seq test-less test-equal key &key (begin 0) (end (length seq)) last-if-no-match)
+  (if (> end (1+ begin))
+      (let* ((middle (+ (floor (/ (- end begin) 2)) begin))
+             (target (elt seq middle))
+             (test (funcall key target)))
+        (cond ((funcall test-equal item test)
+               target)
+              ((funcall test-less item test)
+               (find-sorted item seq test-less test-equal key :begin begin :end middle :last-if-no-match last-if-no-match))
+              (t
+               (find-sorted item seq test-less test-equal key :begin middle :end end :last-if-no-match last-if-no-match))))
+      (and last-if-no-match (if (>= end (length seq))
+                                (elt seq begin)
+                                (elt seq end)))))
 
-(defun find-word (dict wrd)
+(defun find-word (wrd dict)
   (find-sorted wrd (words dict) #'string< #'string= #'lemma))
+
+(defun find-word-by-weight (weight dict)
+  (find-sorted weight (words dict) #'< #'= #'weight :last-if-no-match t))
 
 (defun incr-freq (dict wrd n)
   (let ((target (find-word dict wrd)))
     (when target
       (incf (slot-value target 'freq) n)
       (incf (slot-value dict 'freq-total) n))))
+
+(defun print-dictionary (dict &optional stream)
+  (format stream "(~%")
+  (map nil
+       (lambda (wrd)
+         (format stream " ~s~%" wrd))
+       (words dict))
+  (format stream ")"))
+
+(defun write-dictionary (dict path)
+  (with-open-file (stream path :direction :output :if-exists :supersede)
+    (print-dictionary dict stream)))
+
+(defun read-dictionary (path)
+  (with-open-file (stream path)
+    (let ((dict (make-instance 'dictionary))
+          (word-list (read stream)))
+      (mapc
+       (lambda (wrd-alist)
+         (add-to-dict dict (word-from-alist wrd-alist)))
+       word-list)
+      (sorted-dict dict))))
+
+(defun word-from-alist (wrd-alist)
+  (case (assoc-ref 'pos wrd-alist)
+    (noun
+     (noun-from-alist wrd-alist))
+    (verb
+     (verb-from-alist wrd-alist))
+    ((adjective adverb)
+     (descriptor-from-alist wrd-alist))
+    (t
+     (make-instance
+      (assoc-ref 'pos wrd-alist)
+      :lemma (assoc-ref 'lemma wrd-alist)
+      :freq (assoc-ref 'freq wrd-alist)))))
+
+(defun noun-from-alist (wrd-alist)
+  (make-instance
+   'noun
+   :lemma (assoc-ref 'lemma wrd-alist)
+   :freq (assoc-ref 'freq wrd-alist)
+   :plural (assoc-ref 'plural wrd-alist)))
+
+(defun verb-from-alist (wrd-alist)
+  (make-instance
+   'verb
+   :lemma (assoc-ref 'lemma wrd-alist)
+   :freq (assoc-ref 'freq wrd-alist)
+   :infin (assoc-ref 'infin wrd-alist)
+   :past (assoc-ref 'past wrd-alist)
+   :present (assoc-ref 'present wrd-alist)
+   :future (assoc-ref 'future wrd-alist)
+   :pres-part (assoc-ref 'pres-part wrd-alist)
+   :past-part (assoc-ref 'past-part wrd-alist)))
+
+(defun descriptor-from-alist (wrd-alist)
+  (make-instance
+   (assoc-ref 'pos wrd-alist)
+   :lemma (assoc-ref 'lemma wrd-alist)
+   :freq (assoc-ref 'freq wrd-alist)
+   :comparative (assoc-ref 'comparative wrd-alist)
+   :superlative (assoc-ref 'superlative wrd-alist)))
+
+(defun dict-path-name (dir name)
+  (make-pathname :directory `(:relative ,dir) :name name :type "dict"))
+
+(defun dump-dictionaries (dir-path)
+  (when (ensure-directories-exist dir-path)
+    (write-dictionary *nouns* (dict-path-name dir-path "nouns"))
+    (write-dictionary *verbs* (dict-path-name dir-path "verbs"))
+    (write-dictionary *adjectives* (dict-path-name dir-path "adjectives"))
+    (write-dictionary *adverbs* (dict-path-name dir-path "adverbs"))
+    (write-dictionary *prepositions* (dict-path-name dir-path "prepositions"))))

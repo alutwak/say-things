@@ -10,15 +10,18 @@
 (defvar *voice* "Alex")
 
 (defun say (words)
-  (let ((args (mapcar #'to-string words)))
-    (uiop:run-program (append `("say" "-v" ,*voice*) args))
-    args))
+  (let ((words (mapcar #'to-string words)))
+    (uiop:run-program (append `("say" "-v" ,*voice*) words))
+    words))
 
 (defgeneric choose-random (object)
   (:documentation "Chooses a random word from the object"))
 
 (defmethod choose-random ((object sequence))
   (elt object (random (length object))))
+
+(defgeneric choose-random-weighted (object)
+  (:documentation "Chooses a random word from a weighted sequence"))
 
 (defun say-clause ()
   "Says a traditional subject-object clause. Future versions might generate more complex or varied
@@ -29,19 +32,15 @@
          (object (say-object verb subject)))
     (append subject (list verb) object)))
 
-;;(defvar *verbs* '(eats likes has wants feels sees))
-
 (defun say-verb ()
   "Chooses a random verb from the dictionary. Right now, a verb is just a single symbol,
    but in the future it might also come with metadata.
   "
-  (choose-random *verbs*))
-
-;;(defvar *nouns* '(cheese penguin tree agent bastard belt pickle toy butt penis hand elephant engine baby))
+  (choose-random-weighted *verbs*))
 
 (defun say-noun (verb)
   (declare (ignore verb))
-  (choose-random *nouns*))
+  (choose-random-weighted *nouns*))
 
 (defun say-subject (verb)
   (say-noun-phrase verb))
@@ -61,12 +60,10 @@
 (defun modify-noun (noun)
   (say-adjective-list noun))
 
-;; (defvar *adjectives* '(blue wrong weird ugly small distinct sharp moldy lost old large shiny sweet blonde noisy sexy yellow))
-
 (defun say-adjective-list (noun &optional adjectives)
   (let ((test (random (+ (length adjectives) 2))))
     (if (> 1 test)
-        (say-adjective-list noun (cons (choose-random *adjectives*) adjectives))
+        (say-adjective-list noun (cons (choose-random-weighted *adjectives*) adjectives))
         adjectives)))
 
 (defvar *articles* '((a . an) (the . the) (that . that) (this . this)))

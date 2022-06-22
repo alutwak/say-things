@@ -10,7 +10,7 @@
 (defvar *voice* "Alex")
 
 (defun say (words)
-  (let ((words (mapcar #'to-string words)))
+  (let ((words (list (word-list-to-string words))))
     (uiop:run-program (append `("say" "-v" ,*voice*) words))
     words))
 
@@ -77,3 +77,23 @@
 
 (defun is-vowel (char)
   (member char '(#\a #\e #\i #\o #\u)))
+
+(defun word-list-to-string (word-list &optional (str ""))
+  (if (null word-list)
+      str
+      (typecase (car word-list)
+        (adjective
+         (multiple-value-bind (wl s) (adjective-list-to-string word-list str)
+           (word-list-to-string wl s)))
+        (t
+         (word-list-to-string (cdr word-list)
+                              (concatenate 'string str " " (to-string (car word-list))))))))
+
+(defun adjective-list-to-string (word-list str)
+  (let ((adjectives
+          (loop for wrd in word-list
+                while (eq 'adjective (type-of wrd))
+                collect (to-string wrd))))
+    (values
+     (nthcdr (length adjectives) word-list)
+     (format nil "~a ~{~a~^, ~}" str adjectives))))

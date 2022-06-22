@@ -3,16 +3,37 @@
 (defun convert-oxford-dict (path)
   (multiple-value-bind (nouns verbs adjectives adverbs prepositions)
       (read-oxford-dict path)
-    (defvar *nouns* (sorted-dict nouns))
-    (defvar *verbs* (sorted-dict verbs))
-    (defvar *adjectives* (sorted-dict adjectives))
-    (defvar *adverbs* (sorted-dict adverbs))
-    (defvar *prepositions* (sorted-dict prepositions))
+    (setq *nouns* (sorted-dict nouns))
+    (setq *verbs* (sorted-dict verbs))
+    (setq *adjectives* (sorted-dict adjectives))
+    (setq *adverbs* (sorted-dict adverbs))
+    (setq *prepositions* (sorted-dict prepositions))
     (define-special-be-conjugates *verbs*)
-    (defvar *wordmap* (create-wordmap *nouns* *verbs* *adjectives* *adverbs* *prepositions*))))
+    (setq *wordmap* (create-wordmap *nouns* *verbs* *adjectives* *adverbs* *prepositions*))))
+
+(defun read-oxford-dict (path)
+  (with-open-file (f path)
+    (let ((nouns (make-instance 'dictionary))
+          (verbs (make-instance 'dictionary))
+          (adjectives (make-instance 'dictionary))
+          (adverbs (make-instance 'dictionary))
+          (prepositions (make-instance 'dictionary)))
+      (do ((words (read-word f) (read-word f)))
+          ((eq :eof words))
+        (when words
+          (mapc (lambda (wrd)
+                  (typecase wrd
+                    (noun (add-to-dict nouns wrd))
+                    (verb
+                     (add-to-dict verbs wrd))
+                    (adjective (add-to-dict adjectives wrd))
+                    (adverb (add-to-dict adverbs wrd))
+                    (preposition (add-to-dict prepositions wrd))))
+                words)))
+      (values nouns verbs adjectives adverbs prepositions))))
 
 (defun define-special-be-conjugates (dict)
-  (let ((be (find-word dict "be")))
+  (let ((be (find-word "be" dict)))
     (setf (slot-value be 'infin) "being")
     (setf (slot-value be 'past)
           '((first . "was")
@@ -34,18 +55,18 @@
 (defun create-wordmap (&rest dicts)
   (let ((wordmap (make-hash-table :test #'equal)))
     (mapc (lambda (dict)
-            (wordmap-include-dict dict wordmap))
+            (add-dict-to-wordmap dict wordmap))
           dicts)
     wordmap))
 
-(defun wordmap-include-dict (dict wordmap)
+(defun add-dict-to-wordmap (dict wordmap)
   (map
    nil
    (lambda (wrd)
-     (add-to-wordmap wrd wordmap))
+     (add-word-to-wordmap wrd wordmap))
    (words dict)))
 
-(defun add-to-wordmap (wrd wordmap)
+(defun add-word-to-wordmap (wrd wordmap)
   (mapc (lambda (deriv)
           (map-word deriv wrd wordmap))
         (derivatives wrd)))
@@ -53,34 +74,33 @@
 (defun map-word (deriv wrd wordmap)
   (pushnew wrd (gethash deriv wordmap) :test #'eq))
 
-(defun unbind-dictionaries ()
-  (makunbound '*nouns*)
-  (makunbound '*verbs*)
-  (makunbound '*adjectives*)
-  (makunbound '*adverbs*)
-  (makunbound '*prepositions*))
+(defun weight-by-sample-texts (&rest texts)
+  (mapc #'read-freqs-from-text texts)
+  (mapc #'update-dict-weights
+        (list *nouns* *verbs* *adjectives* *adverbs* *prepositions*)))
 
-;; Oxford reader
-(defun read-oxford-dict (path)
+(defun read-freqs-from-text (path)
   (with-open-file (f path)
-    (let ((nouns (make-instance 'dictionary))
-          (verbs (make-instance 'dictionary))
-          (adjectives (make-instance 'dictionary))
-          (adverbs (make-instance 'dictionary))
-          (prepositions (make-instance 'dictionary)))
-      (do ((words (read-word f) (read-word f)))
-          ((eq :eof words))
-        (when words
-          (mapc (lambda (wrd)
-                  (typecase wrd
-                    (noun (add-to-dict nouns wrd))
-                    (verb
-                     (add-to-dict verbs wrd))
-                    (adj (add-to-dict adjectives wrd))
-                    (adv (add-to-dict adverbs wrd))
-                    (preposition (add-to-dict prepositions wrd))))
-                words)))
-      (values nouns verbs adjectives adverbs prepositions))))
+    (capture-freqs-from-sample f)))
+
+(defun capture-freqs-from-sample (stream)
+  (do ((line (read-line stream nil :eof) (read-line stream nil :eof)))
+      ((eq :eof line))
+    (capture-freqs-from-line line)))
+
+(defun capture-freqs-from-line (line)
+  (let ((words (uiop:split-string line)))
+    (mapc #'increment-word-freqs words)))
+
+(defun increment-word-freqs (str)
+  (let* ((str (ppcre:scan-to-strings
+               "([a-z]+-[a-z]+|[a-z]+)"
+               (string-downcase str))) ;; strip punctuation from the word
+         (wrds (gethash str *wordmap*)))
+    (mapc
+     (lambda (wrd)
+       (incf (slot-value wrd 'freq)))
+     wrds)))
 
 (defvar *type-regex*
   "n\\.|v\\.|[Aa]dj\\.|[Aa]dv\\.|[Pp]rep\\.")
@@ -250,11 +270,13 @@
         (make-instance type :lemma wrd))))
 
 (defun parse-adjective (wrd def)
-  (parse-descriptor 'adj wrd def))
+  (parse-descriptor 'adjective wrd def))
 
 (defun parse-adverb (wrd def)
-  (parse-descriptor 'adv wrd def))
+  (parse-descriptor 'adverb wrd def))
 
 (defun parse-preposition (wrd def)
   (declare (ignore def))
-  (make-instance 'preposition :lemma wrd))
+  (make-instance 'preposition :lemma (string-downcase wrd)))
+
+

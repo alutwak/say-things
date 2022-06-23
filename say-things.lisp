@@ -11,7 +11,7 @@
 
 (defun say (words)
   (let ((words (list (word-list-to-string words))))
-    (uiop:run-program (append `("say" "-v" ,*voice*) words))
+    (print (multiple-value-list (uiop:run-program (append `("/usr/bin/say" "-v" ,*voice*) words) :ignore-error-status t)))
     words))
 
 (defgeneric choose-random (object)

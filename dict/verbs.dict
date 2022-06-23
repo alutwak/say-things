@@ -16170,7 +16170,7 @@
   (PAST . "tongued") (PRESENT . "tongues") (FUTURE . "will tongue") (PRES-PART)
   (PAST-PART))
  ((POS . VERB) (FREQ . 1) (LEMMA . "tongue-and-groove")
-  (INFIN . "tongue-and-grooveing") (PAST . "tongue-and-grooved")
+  (INFIN . "tongue-and-grooving") (PAST . "tongue-and-grooved")
   (PRESENT . "tongue-and-grooves") (FUTURE . "will tongue-and-groove")
   (PRES-PART) (PAST-PART))
  ((POS . VERB) (FREQ . 1) (LEMMA . "tonsure") (INFIN . "tonsuring")

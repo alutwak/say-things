@@ -1330,7 +1330,7 @@
  ((POS . NOUN) (FREQ . 1) (LEMMA . "authorized version")
   (PLURAL . "authorized versions"))
  ((POS . NOUN) (FREQ . 2) (LEMMA . "authorship") (PLURAL . "authorships"))
- ((POS . NOUN) (FREQ . 972) (LEMMA . "autism") (PLURAL . "autisms"))
+ ((POS . NOUN) (FREQ . 30) (LEMMA . "autism") (PLURAL . "autisms"))
  ((POS . NOUN) (FREQ . 8) (LEMMA . "auto") (PLURAL . "autos"))
  ((POS . NOUN) (FREQ . 1) (LEMMA . "auto-da-fé") (PLURAL . "auto-da-fés"))
  ((POS . NOUN) (FREQ . 1) (LEMMA . "auto-suggestion")

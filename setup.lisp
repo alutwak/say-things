@@ -1,7 +1,6 @@
 
 (load "say-things.asd")
 (ql:quickload :say-things)
-
 (in-package :say-things)
 
 (defun load-dicts ()
@@ -15,13 +14,14 @@
 (defun say-random-sentence ()
   (format t "~a~%" (car (say (say-clause)))))
 
-(defun speak-occasionally ()
-  (let ((interval (parse-integer (cadr sb-ext:*posix-argv*)))
+(defun speak-occasionally (&optional interval)
+  (let ((interval (or interval (parse-integer (cadr sb-ext:*posix-argv*))))
         (*random-state* (make-random-state t)))
     (format t "randomly speaking at most every ~a seconds~%" interval)
     (handler-case
         (loop
-          (sleep (+ (random interval) 10))
+          (finish-output *standard-output*)
+          (sleep (+ (random interval) 3))
           (say-random-sentence))
       (sb-sys:interactive-interrupt () (sb-ext:exit)))))
 

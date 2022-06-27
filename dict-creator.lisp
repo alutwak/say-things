@@ -1,5 +1,6 @@
 (in-package :say-things)
 
+;;;;;;  Oxford reader
 (defun convert-oxford-dict (path)
   (multiple-value-bind (nouns verbs adjectives adverbs prepositions)
       (read-oxford-dict path)
@@ -118,8 +119,6 @@
 
 (defun parse-definition (wrd def)
   (let ((defs))
-    ;; (when (string= (string-downcase wrd) "drive")
-    ;;   (break))
     (ppcre:do-register-groups (type1 type2 def) 
         ((format nil "(?:^| )—?(~a)(?: & )?(~a)? (\\(.*?\\))?" *type-regex* *type-regex*) def)
       (mapc (lambda (type)
@@ -157,14 +156,17 @@
         (make-instance 'noun :lemma (string-downcase wrd) :plural (string-downcase plural))
         (make-instance 'noun :lemma (string-downcase wrd)))))
 
+(defun read-conj-info (def)
+  (ppcre::register-groups-bind (conj-info)
+      ("^\\((.+?)\\)" def)
+    conj-info))
+
 (defun parse-verb (wrd def)
   (let* ((wrd (string-downcase wrd))
-         (conj-info (ppcre::register-groups-bind (conj-info)
-                        ("^\\((.+?)\\)" def)
-                      conj-info)))
+         (conj-info (read-conj-info def)))
     (if conj-info
-          (make-verb-from-conj-info wrd conj-info)
-          (make-instance 'verb :lemma wrd))))
+        (make-verb-from-conj-info wrd conj-info)
+        (make-instance 'verb :lemma wrd))))
 
 (defvar *tense-regex*
   "pres(?:ent)?|past|pres\\. part\\.|past part\\.")
@@ -235,7 +237,7 @@
                     (setq past-part conj))
                    ((eq numer 'plural)
                     (error "plural verbs not supported"))
-                   (t
+                   ((notevery #'null `(,person ,numer ,tense))
                     (setq infin conj)))))
       (mapc (lambda (str)
               (let* ((str (string-downcase str))
@@ -244,7 +246,7 @@
                   (destructuring-bind (conj person numer tense1 tense2) conj-info
                     (when (ends-with conj "-")
                       ;; this defines a conjugating connector (like spot -> spo(tt)ed)
-                      ;; and is also going to be an infinitive (I think)
+                      ;; or will also going to be an infinitive (I think)
                       (setq conj-connector (remove #\- conj))
                       (setq conj (add-ing wrd conj-connector)))
                     (let ((conj (apply-conj wrd conj)))
@@ -258,16 +260,22 @@
      :past-part past-part :pres-part pres-part
      :connector conj-connector)))
 
-
 (defun parse-descriptor (type wrd def)
-  (let* ((wrd (string-downcase wrd)))
-    (or (ppcre::register-groups-bind (comp super)
-            ("^\\(([^,]+), (.+?)\\)" def)
-          (make-instance type
-                         :lemma wrd
-                         :comparative (apply-conj wrd comp)
-                         :superlative (apply-conj wrd super)))
+  (let ((wrd (string-downcase wrd))
+        (comp-super (read-descr-conj def)))
+    (if comp-super
+        (make-instance type
+                       :lemma wrd
+                       :comparative (apply-conj wrd (car comp-super))
+                       :superlative (apply-conj wrd (cadr comp-super)))
         (make-instance type :lemma wrd))))
+
+(defun read-descr-conj (def)
+  (let ((conj (read-conj-info def)))
+    (and (not (search "foll. By" conj)) ;; parse these for more advanced conjugation
+         (ppcre::register-groups-bind (comp super)
+             ("^([^,]+), (.+)" conj)
+           (list comp super)))))
 
 (defun parse-adjective (wrd def)
   (parse-descriptor 'adjective wrd def))
@@ -278,5 +286,3 @@
 (defun parse-preposition (wrd def)
   (declare (ignore def))
   (make-instance 'preposition :lemma (string-downcase wrd)))
-
-

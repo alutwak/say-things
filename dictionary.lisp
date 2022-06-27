@@ -197,10 +197,10 @@
   (let ((lemma (string (slot-value wrd 'lemma))))
     (if comparative
         (setf (slot-value wrd 'comparative) comparative)
-        (setf (slot-value wrd 'comparative) (add-er lemma)))
+        (setf (slot-value wrd 'comparative) (concatenate 'string "more " lemma)))
     (if superlative
         (setf (slot-value wrd 'superlative) superlative)
-        (setf (slot-value wrd 'superlative) (add-est lemma)))))
+        (setf (slot-value wrd 'superlative) (concatenate 'string "most " lemma)))))
 
 (defmethod to-string ((wrd descriptor))
   (to-string
@@ -326,8 +326,10 @@
 (defun add-est (wrd &optional connector)
   (add-e-suffix wrd "est" connector))
 
-(defun add-ing (str &optional connector)
-  (concatenate 'string (apply-suffix str connector) "ing"))
+(defun add-ing (wrd &optional connector)
+  (if (ends-with wrd "e")
+      (replace-word-end wrd "ing" (- (length wrd) 1))
+      (concatenate 'string (apply-suffix wrd connector) "ing")))
 
 (defun find-suffix-crossover (wrd suffix)
   "Finds the index in a word at which a suffix should be applied. The suffix will begin

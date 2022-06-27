@@ -11,13 +11,26 @@
   (setq *prepositions* (read-dictionary "dict/prepositions.dict"))
   (mapc #'update-dict-weights (list *nouns* *verbs* *adjectives* *adverbs* *prepositions*)))
 
+(defun str-time ()
+  (multiple-value-bind (sec min hour date mon yr) (get-decoded-time)
+    (format nil "~2,'0d/~2,'0d/~2,'0d ~2,'0d:~2,'0d:~2,'0d" mon date yr hour min sec)))
+
+(defun log-msg (fmt &rest msg)
+  (apply #'format
+         t
+         (append
+          (list
+           (concatenate 'string "~a - " fmt)
+           (str-time))
+          msg)))
+
 (defun say-random-sentence ()
-  (format t "~a~%" (car (say (say-clause)))))
+  (log-msg "~a~%" (car (say (say-clause)))))
 
 (defun speak-occasionally (&optional interval)
   (let ((interval (or interval (parse-integer (cadr sb-ext:*posix-argv*))))
         (*random-state* (make-random-state t)))
-    (format t "randomly speaking at most every ~a seconds~%" interval)
+    (log-msg "randomly speaking at most every ~a seconds~%" interval)
     (handler-case
         (loop
           (finish-output *standard-output*)

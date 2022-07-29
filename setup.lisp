@@ -85,4 +85,4 @@ OPTIONS:
 
 
 (load-dicts)
-(sb-ext:save-lisp-and-die #p"say-things" :toplevel #'main :executable t)
+(sb-ext:save-lisp-and-die #p"say-things" :toplevel #'main :executable t :save-runtime-options t)

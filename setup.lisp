@@ -27,9 +27,8 @@
 (defun say-random-sentence ()
   (log-msg "~a~%" (car (say (say-clause)))))
 
-(defun speak-occasionally (&optional interval)
-  (let ((interval (or interval (parse-integer (cadr sb-ext:*posix-argv*))))
-        (*random-state* (make-random-state t)))
+(defun speak-occasionally (interval)
+  (let ((*random-state* (make-random-state t)))
     (log-msg "randomly speaking at most every ~a seconds~%" interval)
     (handler-case
         (loop
@@ -38,6 +37,52 @@
           (say-random-sentence))
       (sb-sys:interactive-interrupt () (sb-ext:exit)))))
 
-(load-dicts)
-(sb-ext:save-lisp-and-die #p"say-things" :toplevel #'speak-occasionally :executable t)
+(defun parse-interval (arg)
+  (handler-case
+      (let ((interval (parse-integer arg)))
+        (if (> interval 0)
+            interval
+            'error))
+    (sb-int:simple-parse-error () 'error)))
 
+(defvar *help-desc*
+  "A valuable utility for those who need their Macintosh computers to say mostly unintelligible, random sentences
+
+USEAGE:
+    say-things [INTERVAL] [OPTIONS]
+
+DESCRIPTION:
+    If a positive integer interval is given, say-things will run indefinitely, saying interesting random sentences until the
+    program is killed with a Ctl-C. If no interval is given, it will say a single random sentence and then exit.
+
+OPTIONS:
+    -h, --help    Print this help message")
+
+(defun print-help ()
+  (write-line *help-desc*))
+
+(defun exec-from-argv (argv)
+  (let* ((args (cdr argv))
+         (interval (and args (parse-interval (car args)))))
+    (cond
+      ((eq interval 'error)
+       (lambda ()
+         (print-help)
+         (format t "~%INTERVAL must be a positive integer~%")))
+      ((or (find "-h" args :test #'string=)
+           (find "--help" args :test #'string=))
+       #'print-help)
+      (interval
+       (lambda ()
+         (speak-occasionally interval)))
+      (t
+       (lambda ()
+          (say (say-clause)))))))
+
+(defun main ()
+  (let ((exec (exec-from-argv sb-ext:*posix-argv*)))
+    (funcall exec)))
+
+
+(load-dicts)
+(sb-ext:save-lisp-and-die #p"say-things" :toplevel #'main :executable t)
